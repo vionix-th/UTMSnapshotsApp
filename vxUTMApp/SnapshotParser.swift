@@ -36,16 +36,20 @@ public enum SnapshotParser {
       let id = parts[0]
       let tag = parts[1]
 
-      // Find date token: first token matching YYYY-MM-DD
+      // Find date token: first token matching YYYY-MM-DD after ID/TAG/VM_SIZE.
+      // Tags can legitimately look date-like, so searching from index 0 can mis-detect
+      // the TAG column and produce an invalid VM_SIZE slice.
       let isDateToken: (String) -> Bool = { s in
         guard s.count == 10 else { return false }
         return s[s.index(s.startIndex, offsetBy: 4)] == "-" && s[s.index(s.startIndex, offsetBy: 7)] == "-"
       }
-      guard let dateIdx = parts.firstIndex(where: isDateToken) else {
+      guard let dateIdx = parts.indices.dropFirst(3).first(where: { isDateToken(parts[$0]) }) else {
         continue
       }
+      guard dateIdx > 2 else { continue }
 
       let vmSizeParts = parts[2..<dateIdx]
+      guard !vmSizeParts.isEmpty else { continue }
       let vmSize = vmSizeParts.joined(separator: " ")
 
       // Date + time
