@@ -353,10 +353,26 @@ final class AppViewModel: ObservableObject {
       return
     }
 
-    let result = await snapshotCoordinator.listTagStatuses(scopedVMs: scopedVMs, qemu: qemu)
+    let snapshotReadTargets = scopedVMs.filter { vm in
+      !vm.diskURLs.isEmpty && runtimeInfo(for: vm).status == .stopped
+    }
+    let skippedSnapshotReads = scopedVMs.compactMap { vm -> String? in
+      guard !vm.diskURLs.isEmpty else { return nil }
+      let status = runtimeInfo(for: vm).status
+      guard status != .stopped else { return nil }
+      return "\(vm.name) (\(status.displayLabel))"
+    }
+
+    let result = await snapshotCoordinator.listTagStatuses(scopedVMs: snapshotReadTargets, qemu: qemu)
     guard shouldCommitRefresh(generation) else { return }
 
     snapshotTags = result.tags
+    if !skippedSnapshotReads.isEmpty {
+      appendLog(
+        "Snapshot read skipped for non-stopped VM(s): ",
+        skippedSnapshotReads.joined(separator: ", ")
+      )
+    }
     if !result.failures.isEmpty {
       for failure in result.failures {
         appendLog("Snapshot read failed for ", failure)
